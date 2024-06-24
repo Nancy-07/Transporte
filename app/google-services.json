@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1003521735255",
+    "project_id": "trasnporte-d4229",
+    "storage_bucket": "trasnporte-d4229.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1003521735255:android:bd1004752577564c3d0112",
+        "android_client_info": {
+          "package_name": "com.example.transporte"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBIge0YojXXa8LT0B3-qhtLZZ-ybMBJW7c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
