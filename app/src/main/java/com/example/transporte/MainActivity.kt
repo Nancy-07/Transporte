@@ -13,6 +13,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import android.util.Log
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -28,27 +30,43 @@ class MainActivity : ComponentActivity() {
             startActivity(loginIntent)
             finish() // Cerrar MainActivity para que no pueda volver atrás sin iniciar sesión
         } else {
-            // Obtener el tipo de cuenta de los extras
-            val accountType = intent.getStringExtra("accountType")
-
-            // Redirigir a la actividad correspondiente
-            when (accountType) {
-                "Usuario" -> {
-                    val usuarioIntent = Intent(this, UsuarioActivity::class.java)
-                    startActivity(usuarioIntent)
+            // Obtener el tipo de cuenta desde Firestore
+            val db = FirebaseFirestore.getInstance()
+            db.collection("especificaciones").document(currentUser.uid).get()
+                .addOnSuccessListener { document ->
+                    if (document != null && document.exists()) {
+                        val accountType = document.getString("type")
+                        when (accountType) {
+                            "Usuario" -> {
+                                val usuarioIntent = Intent(this, UsuarioActivity::class.java)
+                                startActivity(usuarioIntent)
+                                finish()
+                            }
+                            "Transporte" -> {
+                                val transporteIntent = Intent(this, TransporteActivity::class.java)
+                                startActivity(transporteIntent)
+                                finish()
+                            }
+                            else -> {
+                                // En caso de que el tipo de cuenta no esté especificado o sea desconocido, mostrar MainScreen
+                                setContent {
+                                    MainScreen()
+                                }
+                            }
+                        }
+                    } else {
+                        Log.e("MainActivity", "Documento no encontrado en 'especificaciones'")
+                        setContent {
+                            MainScreen()
+                        }
+                    }
                 }
-                "Transporte" -> {
-                    val transporteIntent = Intent(this, TransporteActivity::class.java)
-                    startActivity(transporteIntent)
-                }
-                else -> {
-                    // En caso de que el tipo de cuenta no esté especificado o sea desconocido, mostrar MainScreen
+                .addOnFailureListener { e ->
+                    Log.e("MainActivity", "Error al obtener tipo de cuenta: ${e.message}", e)
                     setContent {
                         MainScreen()
                     }
                 }
-            }
-            finish() // Cerrar MainActivity para que no se pueda volver atrás sin cerrar sesión
         }
     }
 }

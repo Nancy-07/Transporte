@@ -17,15 +17,55 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import android.util.Log
 
 class LoginActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {
-            LoginScreen()
+
+        val auth = FirebaseAuth.getInstance()
+        val currentUser = auth.currentUser
+
+        if (currentUser != null) {
+            // Usuario ya autenticado, redirigir a MainActivity
+            val userId = currentUser.uid
+            val db = FirebaseFirestore.getInstance()
+
+            db.collection("especificaciones").document(userId).get()
+                .addOnSuccessListener { document ->
+                    if (document != null && document.exists()) {
+                        val userType = document.getString("type")
+                        if (userType == "Usuario" || userType == "Transporte") {
+                            // Redirigir a MainActivity con tipo de cuenta y ID de usuario
+                            val mainIntent = Intent(this, MainActivity::class.java).apply {
+                                putExtra("accountType", userType)
+                                putExtra("userId", userId)
+                            }
+                            startActivity(mainIntent)
+                            finish()
+                        } else {
+                            // Tipo de cuenta desconocido
+                            Log.e("LoginError", "Tipo de cuenta desconocido")
+                            setContent { LoginScreen() }
+                        }
+                    } else {
+                        // Documento no encontrado
+                        Log.e("LoginError", "Error: Documento no encontrado")
+                        setContent { LoginScreen() }
+                    }
+                }
+                .addOnFailureListener { e ->
+                    // Error al obtener tipo de cuenta
+                    Log.e("LoginError", "Error al obtener tipo de cuenta: ${e.message}", e)
+                    setContent { LoginScreen() }
+                }
+        } else {
+            // Usuario no autenticado, mostrar pantalla de login
+            setContent { LoginScreen() }
         }
     }
 }
+
 
 @Composable
 @Preview
