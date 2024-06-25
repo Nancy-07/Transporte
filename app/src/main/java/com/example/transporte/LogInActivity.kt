@@ -14,8 +14,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.foundation.Image
-
 import androidx.compose.ui.unit.dp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -42,7 +40,6 @@ fun LoginScreen() {
 
     Surface(
         modifier = Modifier.fillMaxSize(),
-        //color = MaterialTheme.colorScheme.primary
     ) {
         Column(
             modifier = Modifier
@@ -55,12 +52,10 @@ fun LoginScreen() {
                 contentDescription = "App Logo"
             )
             OutlinedTextField(
-
                 value = email,
                 onValueChange = { email = it },
                 label = { Text("Email") },
                 modifier = Modifier.fillMaxWidth(),
-
             )
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
@@ -69,7 +64,6 @@ fun LoginScreen() {
                 label = { Text("Password") },
                 modifier = Modifier.fillMaxWidth(),
                 visualTransformation = PasswordVisualTransformation(),
-
             )
             Spacer(modifier = Modifier.height(16.dp))
             Button(
@@ -81,9 +75,9 @@ fun LoginScreen() {
                             if (task.isSuccessful) {
                                 val user = auth.currentUser
                                 if (user != null) {
-                                    // Obtener el tipo de cuenta desde Firestore
+                                    // Obtener el tipo de cuenta desde Firestore en la colección "especificaciones"
                                     val db = FirebaseFirestore.getInstance()
-                                    db.collection("users").document(user.uid).get()
+                                    db.collection("especificaciones").document(user.uid).get()
                                         .addOnSuccessListener { document ->
                                             if (document != null) {
                                                 val userType = document.getString("type")
@@ -91,12 +85,14 @@ fun LoginScreen() {
                                                     // Redirigir a MainActivity con tipo de cuenta "Usuario"
                                                     val mainIntent = Intent(context, MainActivity::class.java)
                                                     mainIntent.putExtra("accountType", "Usuario")
+                                                    mainIntent.putExtra("userId", user.uid)
                                                     context.startActivity(mainIntent)
                                                     (context as ComponentActivity).finish()
                                                 } else if (userType == "Transporte") {
                                                     // Redirigir a MainActivity con tipo de cuenta "Transporte"
                                                     val mainIntent = Intent(context, MainActivity::class.java)
                                                     mainIntent.putExtra("accountType", "Transporte")
+                                                    mainIntent.putExtra("userId", user.uid)
                                                     context.startActivity(mainIntent)
                                                     (context as ComponentActivity).finish()
                                                 } else {
@@ -117,12 +113,9 @@ fun LoginScreen() {
                                 message = task.exception?.message ?: "Login fallido"
                             }
                         }
-
                 },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = Color.Blue) // Royal Blue
-
-
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(color = Color.White)

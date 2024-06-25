@@ -28,7 +28,9 @@ class SignInActivity : ComponentActivity() {
             SignInScreen()
         }
     }
-}@Preview(showBackground = true)
+}
+
+@Preview(showBackground = true)
 @Composable
 fun SignInScreen() {
     var email by remember { mutableStateOf("") }
@@ -123,16 +125,30 @@ fun SignInScreen() {
                                     db.collection(collection).document(user!!.uid)
                                         .set(userInfo)
                                         .addOnCompleteListener { userInfoTask ->
-                                            isLoading = false
                                             if (userInfoTask.isSuccessful) {
-                                                message = "¡Cuenta creada exitosamente!"
-                                                // Redirigir a MainActivity después de un registro exitoso y pasar el tipo de cuenta
-                                                val mainIntent = Intent(context, MainActivity::class.java).apply {
-                                                    putExtra("accountType", accountType)
-                                                }
-                                                context.startActivity(mainIntent)
-                                                (context as ComponentActivity).finish() // Cerrar SignInActivity para que no se pueda volver atrás sin cerrar sesión
+                                                // Guardar el tipo de usuario en la colección 'especificaciones'
+                                                val specInfo = hashMapOf(
+                                                    "userId" to user.uid,
+                                                    "type" to accountType
+                                                )
+                                                db.collection("especificaciones").document(user.uid)
+                                                    .set(specInfo)
+                                                    .addOnCompleteListener { specInfoTask ->
+                                                        isLoading = false
+                                                        if (specInfoTask.isSuccessful) {
+                                                            message = "¡Cuenta creada exitosamente!"
+                                                            // Redirigir a MainActivity después de un registro exitoso y pasar el tipo de cuenta
+                                                            val mainIntent = Intent(context, MainActivity::class.java).apply {
+                                                                putExtra("accountType", accountType)
+                                                            }
+                                                            context.startActivity(mainIntent)
+                                                            (context as ComponentActivity).finish() // Cerrar SignInActivity para que no se pueda volver atrás sin cerrar sesión
+                                                        } else {
+                                                            message = specInfoTask.exception?.message ?: "¡Fallo en el registro de especificaciones!"
+                                                        }
+                                                    }
                                             } else {
+                                                isLoading = false
                                                 message = userInfoTask.exception?.message ?: "¡Fallo en el registro!"
                                             }
                                         }
@@ -141,7 +157,6 @@ fun SignInScreen() {
                                     message = task.exception?.message ?: "¡Fallo en el registro!"
                                 }
                             }
-
                     } else {
                         message = "Passwords do not match!"
                     }

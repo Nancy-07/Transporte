@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -29,30 +30,17 @@ import java.util.*
 data class Pago(val transporteId: String, val monto: Double, val fecha: String)
 
 class UsuarioActivity : ComponentActivity() {
-    private val qrScannerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val qrResult = result.data?.getStringExtra(QRScannerActivity.QR_RESULT)
-            qrResult?.let {
-                UsuarioScreen.pagarDialogTransporteId = it
-            }
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            TransporteTheme {
-                UsuarioScreen(qrScannerLauncher)
-            }
+            UsuarioScreen ()
         }
     }
-
-    companion object {
-        var pagarDialogTransporteId: String? = null
-    }
 }
+
 @Composable
-fun UsuarioScreen(qrScannerLauncher: ActivityResultLauncher<Intent>) {
+fun UsuarioScreen() {
     var nombre by remember { mutableStateOf("") }
     var saldo by remember { mutableStateOf(0.0) }
     var showDialog by remember { mutableStateOf(false) }
@@ -171,7 +159,7 @@ fun UsuarioScreen(qrScannerLauncher: ActivityResultLauncher<Intent>) {
                         }
 
                     showDialog = false
-                }, qrScannerLauncher)
+                })
             }
             Spacer(modifier = Modifier.height(16.dp))
             Text(text = "Historial de Pagos", style = MaterialTheme.typography.headlineMedium, color = Color(0xFF0A74DA))
@@ -187,11 +175,10 @@ fun UsuarioScreen(qrScannerLauncher: ActivityResultLauncher<Intent>) {
 }
 
 @Composable
-fun PagarDialog(onDismiss: () -> Unit, onPagar: (String, Double) -> Unit, qrScannerLauncher: ActivityResultLauncher<Intent>) {
-    var transporteId by remember { mutableStateOf(UsuarioActivity.pagarDialogTransporteId ?: "") }
+fun PagarDialog(onDismiss: () -> Unit, onPagar: (String, Double) -> Unit) {
+    var transporteId by remember { mutableStateOf("") }
     var selectedOption by remember { mutableStateOf("") }
     val opciones = listOf("Opción 1: $10", "Opción 2: $20", "Opción 3: $30")
-    val context = LocalContext.current
 
     AlertDialog(
         onDismissRequest = { onDismiss() },
@@ -201,14 +188,8 @@ fun PagarDialog(onDismiss: () -> Unit, onPagar: (String, Double) -> Unit, qrScan
                 TextField(
                     value = transporteId,
                     onValueChange = { transporteId = it },
-                    label = { Text("Número de Transporte (Manual o Escaneado)") },
+                    label = { Text("Número de Transporte") },
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-                Button(onClick = {
-                    qrScannerLauncher.launch(Intent(context, QRScannerActivity::class.java))
-                }) {
-                    Text("Escanear QR")
-                }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text("Seleccione una opción:", fontWeight = FontWeight.SemiBold, color = Color(0xFF0A74DA))
                 opciones.forEach { opcion ->
@@ -247,10 +228,6 @@ fun PagarDialog(onDismiss: () -> Unit, onPagar: (String, Double) -> Unit, qrScan
             }
         }
     )
-
-    LaunchedEffect(transporteId) {
-        UsuarioActivity.pagarDialogTransporteId = null
-    }
 }
 
 @Composable
