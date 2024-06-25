@@ -1,13 +1,9 @@
 package com.example.transporte
 
-import android.app.Activity
-import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.result.ActivityResultLauncher
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -22,19 +18,26 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Text
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
 import java.util.*
 
-data class Pago(val transporteId: String, val monto: Double, val fecha: String)
+data class Pago(val transporte: String, val transporteId: String, val monto: Double, val fecha: String)
 
 class UsuarioActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            UsuarioScreen ()
+            TransporteTheme {
+                UsuarioScreen()
+            }
         }
     }
 }
@@ -55,35 +58,32 @@ fun UsuarioScreen() {
 
         // Cargar datos del usuario desde Firestore
         LaunchedEffect(Unit) {
-            firestore.collection("usuarios").document(userId)
-                .get()
-                .addOnSuccessListener { document ->
-                    if (document.exists()) {
-                        nombre = document.getString("nombre") ?: ""
-                        saldo = document.getDouble("saldo") ?: 0.0
-                    }
-                }
-                .addOnFailureListener { e ->
-                    Toast.makeText(context, "Error al cargar datos del usuario: ${e.message}", Toast.LENGTH_LONG).show()
-                }
+            try {
+                val userData = firestore.collection("usuarios").document(userId).get().await()
+                nombre = userData.getString("nombre") ?: ""
+                saldo = userData.getDouble("saldo") ?: 0.0
+            } catch (e: Exception) {
+                // showSnackbar(context, "Error al cargar datos del usuario: ${e.message}")
+            }
 
             // Cargar historial de pagos desde Firestore
-            firestore.collection("historialPagos")
-                .whereEqualTo("userId", userId)
-                .get()
-                .addOnSuccessListener { documents ->
-                    val pagos = documents.map { document ->
-                        Pago(
-                            transporteId = document.getString("transporteId") ?: "",
-                            monto = document.getDouble("monto") ?: 0.0,
-                            fecha = document.getString("fecha") ?: ""
-                        )
-                    }
-                    historialPagos = pagos
+            try {
+                val pagosSnapshot = firestore.collection("historialPagos")
+                    .whereEqualTo("userId", userId)
+                    .get()
+                    .await()
+
+                historialPagos = pagosSnapshot.map { document ->
+                    Pago(
+                        transporte = document.getString("transporte") ?: "",
+                        transporteId = document.getString("transporteId") ?: "",
+                        monto = document.getDouble("monto") ?: 0.0,
+                        fecha = document.getString("fecha") ?: ""
+                    )
                 }
-                .addOnFailureListener { e ->
-                    Toast.makeText(context, "Error al cargar historial de pagos: ${e.message}", Toast.LENGTH_LONG).show()
-                }
+            } catch (e: Exception) {
+                //showSnackbar(context, "Error al cargar historial de pagos: ${e.message}")
+            }
         }
 
         Column(
@@ -101,64 +101,81 @@ fun UsuarioScreen() {
                 Text(text = "Pagar")
             }
             if (showDialog) {
-                PagarDialog(onDismiss = { showDialog = false }, onPagar = { transporteId, monto ->
-                    saldo -= monto
-                    firestore.collection("usuarios").document(userId)
-                        .update("saldo", saldo)
-                        .addOnSuccessListener {
-                            Toast.makeText(context, "Pago realizado", Toast.LENGTH_LONG).show()
-                        }
-                        .addOnFailureListener { e ->
-                            Toast.makeText(context, "Error al realizar pago: ${e.message}", Toast.LENGTH_LONG).show()
-                        }
-
-                    // Actualizar saldo del transporte
-                    firestore.collection("transporte").document(transporteId)
+                PagarDialog(onDismiss = { showDialog = false }, onPagar = { nombreTransporte, monto ->
+                    // Buscar ID del transporte por nombre
+                    firestore.collection("transporte")
+                        .whereEqualTo("nombre", nombreTransporte)
                         .get()
-                        .addOnSuccessListener { document ->
-                            if (document.exists()) {
-                                // Extraer el valor actual del saldo
-                                val saldoActual = document.getDouble("saldo") ?: 0.0
+                        .addOnSuccessListener { documents ->
+                            if (documents.isEmpty) {
+                                //showSnackbar(context, "Error: El transporte no existe")
+                            } else {
+                                val transporteId = documents.first().id
 
-                                // Calcular el nuevo saldo
-                                val nuevoSaldo = saldoActual + monto
-
-                                // Actualizar el saldo en Firestore
-                                firestore.collection("transporte").document(transporteId)
+                                // Realizar el pago
+                                val nuevoSaldo = saldo - monto
+                                firestore.collection("usuarios").document(userId)
                                     .update("saldo", nuevoSaldo)
                                     .addOnSuccessListener {
-                                        Toast.makeText(context, "Saldo del transporte actualizado", Toast.LENGTH_LONG).show()
+                                        // showSnackbar(context, "Pago realizado correctamente")
                                     }
                                     .addOnFailureListener { e ->
-                                        Toast.makeText(context, "Error al actualizar saldo del transporte: ${e.message}", Toast.LENGTH_LONG).show()
+                                        // showSnackbar(context, "Error al realizar el pago: ${e.message}")
                                     }
-                            } else {
-                                Toast.makeText(context, "Error: El transporte no existe", Toast.LENGTH_LONG).show()
+
+                                // Actualizar saldo del transporte
+                                firestore.collection("transporte").document(transporteId)
+                                    .get()
+                                    .addOnSuccessListener { document ->
+                                        if (document.exists()) {
+                                            val saldoActual = document.getDouble("saldo") ?: 0.0
+                                            val nuevoSaldoTransporte = saldoActual + monto
+                                            firestore.collection("transporte").document(transporteId)
+                                                .update("saldo", nuevoSaldoTransporte)
+                                                .addOnSuccessListener {
+
+                                                    Toast.makeText(context,   "Saldo del transporte actualizado correctamente", Toast.LENGTH_LONG).show()
+                                                }
+                                                .addOnFailureListener { e ->
+                                                    Toast.makeText(context,   "Error al actualizar saldo del transporte: ${e.message}", Toast.LENGTH_LONG).show()
+                                                }
+                                        } else {
+                                            Toast.makeText(context,  "Error: El transporte no existe", Toast.LENGTH_LONG).show()
+
+                                        }
+                                    }
+                                    .addOnFailureListener { e ->
+                                        Toast.makeText(context,   "Error al obtener el saldo del transporte: ${e.message}", Toast.LENGTH_LONG).show()
+
+                                    }
+
+                                // Guardar el pago en el historial
+                                val nuevoPago = hashMapOf(
+                                    "userId" to userId,
+                                    "transporte" to nombreTransporte,
+                                    "transporteId" to transporteId,
+                                    "monto" to monto,
+                                    "fecha" to SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+                                )
+                                firestore.collection("historialPagos")
+                                    .add(nuevoPago)
+                                    .addOnSuccessListener {
+
+                                        Toast.makeText(context,  "Pago registrado en el historial", Toast.LENGTH_LONG).show()
+                                        historialPagos = historialPagos + Pago(nombreTransporte, transporteId, monto, nuevoPago["fecha"] as String)
+                                    }
+                                    .addOnFailureListener { e ->
+                                        Toast.makeText(context,  "Error al registrar el pago en el historial: ${e.message}", Toast.LENGTH_LONG).show()
+
+                                    }
+
+                                showDialog = false
                             }
                         }
                         .addOnFailureListener { e ->
-                            Toast.makeText(context, "Error al obtener el saldo del transporte: ${e.message}", Toast.LENGTH_LONG).show()
-                        }
+                            Toast.makeText(context,  "Error al buscar el ID del transporte: ${e.message}", Toast.LENGTH_LONG).show()
 
-                    // Guardar el pago en el historial
-                    val nuevoPago = hashMapOf(
-                        "userId" to userId,
-                        "transporteId" to transporteId,
-                        "monto" to monto,
-                        "fecha" to SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
-                    )
-                    firestore.collection("historialPagos")
-                        .add(nuevoPago)
-                        .addOnSuccessListener {
-                            Toast.makeText(context, "Pago registrado en el historial", Toast.LENGTH_LONG).show()
-                            // Actualizar historial en la interfaz
-                            historialPagos = historialPagos + Pago(transporteId, monto, nuevoPago["fecha"] as String)
                         }
-                        .addOnFailureListener { e ->
-                            Toast.makeText(context, "Error al registrar el pago en el historial: ${e.message}", Toast.LENGTH_LONG).show()
-                        }
-
-                    showDialog = false
                 })
             }
             Spacer(modifier = Modifier.height(16.dp))
@@ -176,32 +193,38 @@ fun UsuarioScreen() {
 
 @Composable
 fun PagarDialog(onDismiss: () -> Unit, onPagar: (String, Double) -> Unit) {
-    var transporteId by remember { mutableStateOf("") }
+    var nombreTransporte by remember { mutableStateOf("") }
     var selectedOption by remember { mutableStateOf("") }
     val opciones = listOf("Opción 1: $10", "Opción 2: $20", "Opción 3: $30")
 
     AlertDialog(
         onDismissRequest = { onDismiss() },
-        title = { Text(text = "Pagar Transporte", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = Color(0xFF0A74DA)) },
+        title = { Text(text = "Pagar Transporte", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = Color.Blue) },
         text = {
             Column {
                 TextField(
-                    value = transporteId,
-                    onValueChange = { transporteId = it },
-                    label = { Text("Número de Transporte") },
+                    value = nombreTransporte,
+                    onValueChange = { nombreTransporte = it },
+                    label = { Text("Nombre del Transporte") }
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("Seleccione una opción:", fontWeight = FontWeight.SemiBold, color = Color(0xFF0A74DA))
                 opciones.forEach { opcion ->
                     Row(
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
                     ) {
                         RadioButton(
                             selected = opcion == selectedOption,
                             onClick = { selectedOption = opcion },
-                            colors = RadioButtonDefaults.colors(selectedColor = Color(0xFF0A74DA))
+                            colors = RadioButtonDefaults.colors(selectedColor = Color.Blue)
                         )
-                        Text(text = opcion)
+                        Text(
+                            text = opcion,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(start = 8.dp)
+                        )
                     }
                 }
             }
@@ -215,7 +238,7 @@ fun PagarDialog(onDismiss: () -> Unit, onPagar: (String, Double) -> Unit) {
                         "Opción 3: $30" -> 30.0
                         else -> 0.0
                     }
-                    onPagar(transporteId, monto)
+                    onPagar(nombreTransporte, monto)
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0A74DA))
             ) {
@@ -230,6 +253,7 @@ fun PagarDialog(onDismiss: () -> Unit, onPagar: (String, Double) -> Unit) {
     )
 }
 
+
 @Composable
 fun PagoItem(pago: Pago) {
     Column(
@@ -239,11 +263,14 @@ fun PagoItem(pago: Pago) {
             .background(Color(0xFFEDEDED))
             .padding(16.dp)
     ) {
-        Text(text = "Transporte: ${pago.transporteId}", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = Color(0xFF0A74DA))
+
+        Text(text = "Transporte: ${pago.transporte}", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = Color(0xFF0A74DA))
         Text(text = "Monto: ${pago.monto}", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = Color(0xFF0A74DA))
         Text(text = "Fecha: ${pago.fecha}", style = MaterialTheme.typography.bodyLarge)
     }
 }
+
+
 
 private val DarkColorScheme = darkColorScheme(
     primary = Color(0xFF0A74DA), // Royal Blue for dark theme primary
@@ -273,3 +300,5 @@ fun TransporteTheme(
         content = content
     )
 }
+
+
