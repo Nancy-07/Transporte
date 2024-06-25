@@ -1,5 +1,6 @@
 [versions]
 agp = "8.3.2"
+core = "3.4.1"
 firebaseAuth = "23.0.0"
 firebaseBom = "33.1.0"
 firebaseBomVersion = "30.3.0"
@@ -21,6 +22,7 @@ zxingAndroidEmbedded = "4.2.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+core = { module = "com.google.zxing:core", version.ref = "core" }
 firebase-auth = { module = "com.google.firebase:firebase-auth", version.ref = "firebaseAuth" }
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
 firebase-bom-v3030 = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBomVersion" }

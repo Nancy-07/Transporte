@@ -74,6 +74,9 @@ dependencies {
     implementation (libs.firebase.auth)
     implementation(libs.play.services.auth)
     implementation (libs.zxing.android.embedded)
+    implementation (libs.core)
+    implementation ("com.google.zxing:core:3.3.3")
+
 
 
 }
